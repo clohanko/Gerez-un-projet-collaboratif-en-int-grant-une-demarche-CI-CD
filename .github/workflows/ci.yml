@@ -6,7 +6,6 @@ on:
 
 jobs:
   sanity:
-    name: Sanity checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,7 +13,6 @@ jobs:
         run: |
           pwd
           ls -la
-          echo "Detected files:"
           [ -f pom.xml ] && echo " -> pom.xml at root"
           [ -f back/pom.xml ] && echo " -> back/pom.xml"
           [ -f package.json ] && echo " -> package.json at root"
@@ -25,35 +23,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Detect Maven module
         id: detect_maven
         run: |
-          has_maven="false"
-          if [ -f pom.xml ] || [ -f back/pom.xml ]; then has_maven="true"; fi
-          echo "has_maven=$has_maven" >> "$GITHUB_OUTPUT"
+          has_root=false; has_back=false
+          [ -f pom.xml ] && has_root=true
+          [ -f back/pom.xml ] && has_back=true
+          echo "has_root=$has_root" >> $GITHUB_OUTPUT
+          echo "has_back=$has_back" >> $GITHUB_OUTPUT
 
       - name: Set up Java
-        if: steps.detect_maven.outputs.has_maven == 'true'
+        if: steps.detect_maven.outputs.has_root == 'true' || steps.detect_maven.outputs.has_back == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'   # mets '11' si ton projet est en Java 11
+          java-version: '17'    # mets '11' si ton projet le demande
 
-      - name: Maven - root
-        if: steps.detect_maven.outputs.has_maven == 'true' && hashFiles('pom.xml') != ''
+      # Utilise Maven du runner (pas ./mvnw)
+      - name: Maven build (root)
+        if: steps.detect_maven.outputs.has_root == 'true'
         run: |
-          chmod +x mvnw || true
-          ./mvnw -v
-          ./mvnw -B -DskipTests package
+          mvn -v
+          mvn -B -DskipTests package
 
-      - name: Maven - back/
-        if: steps.detect_maven.outputs.has_maven == 'true' && hashFiles('back/pom.xml') != ''
+      - name: Maven build (back/)
+        if: steps.detect_maven.outputs.has_back == 'true'
         working-directory: back
         run: |
-          chmod +x ../mvnw || true
-          ../mvnw -v
-          ../mvnw -B -DskipTests package
+          mvn -v
+          mvn -B -DskipTests package
 
   frontend:
     name: Frontend (Node)
@@ -64,10 +62,10 @@ jobs:
       - name: Detect frontend location
         id: detect_front
         run: |
-          loc="none"
-          if [ -f package.json ]; then loc="root"; fi
-          if [ -f front/package.json ]; then loc="front"; fi
-          echo "loc=$loc" >> "$GITHUB_OUTPUT"
+          loc=none
+          [ -f package.json ] && loc=root
+          [ -f front/package.json ] && loc=front
+          echo "loc=$loc" >> $GITHUB_OUTPUT
 
       - name: Set up Node (root)
         if: steps.detect_front.outputs.loc == 'root'
@@ -76,11 +74,11 @@ jobs:
           node-version: '18'
           cache: 'npm'
 
-      - name: Install & test (root)
+      - name: Install & test (root, headless)
         if: steps.detect_front.outputs.loc == 'root'
         run: |
           npm ci || npm install
-          npm test --if-present -- --watch=false
+          npm test --if-present -- --watch=false --browsers=ChromeHeadless
 
       - name: Set up Node (front/)
         if: steps.detect_front.outputs.loc == 'front'
@@ -90,9 +88,9 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'front/package-lock.json'
 
-      - name: Install & test (front/)
+      - name: Install & test (front/, headless)
         if: steps.detect_front.outputs.loc == 'front'
         working-directory: front
         run: |
           npm ci || npm install
-          npm test --if-present -- --watch=false
+          npm test --if-present -- --watch=false --browsers=ChromeHeadless
