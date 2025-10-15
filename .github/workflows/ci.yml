@@ -19,39 +19,42 @@ jobs:
           [ -f front/package.json ] && echo " -> front/package.json"
 
   backend:
-    name: Backend (Maven)
+    name: Backend - Tests & Coverage
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: back   # <-- mets '.' si ton pom.xml est à la racine
     steps:
       - uses: actions/checkout@v4
-      - name: Detect Maven module
-        id: detect_maven
-        run: |
-          has_root=false; has_back=false
-          [ -f pom.xml ] && has_root=true
-          [ -f back/pom.xml ] && has_back=true
-          echo "has_root=$has_root" >> $GITHUB_OUTPUT
-          echo "has_back=$has_back" >> $GITHUB_OUTPUT
 
-      - name: Set up Java
-        if: steps.detect_maven.outputs.has_root == 'true' || steps.detect_maven.outputs.has_back == 'true'
+      - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'    # mets '11' si ton projet le demande
+          java-version: '11'
+          cache: maven
 
-      # Utilise Maven du runner (pas ./mvnw)
-      - name: Maven build (root)
-        if: steps.detect_maven.outputs.has_root == 'true'
-        run: |
-          mvn -v
-          mvn -B -DskipTests package
+      - name: Run tests
+        run: mvn -B -DskipTests=false test
 
-      - name: Maven build (back/)
-        if: steps.detect_maven.outputs.has_back == 'true'
-        working-directory: back
-        run: |
-          mvn -v
-          mvn -B -DskipTests package
+      - name: Generate JaCoCo report
+        run: mvn -B org.jacoco:jacoco-maven-plugin:0.8.5:report
+
+      - name: Publish JUnit test results
+        if: always()
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: '**/target/surefire-reports/*.xml'
+          check_name: 'Backend JUnit'
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: |
+            **/target/site/jacoco/**
+            **/target/jacoco.exec
 
   frontend:
     name: Frontend (Node)
