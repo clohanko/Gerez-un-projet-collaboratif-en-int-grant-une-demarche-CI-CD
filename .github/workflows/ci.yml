@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  sanity:
+    name: Sanity checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show repo content
+        run: |
+          pwd
+          ls -la
+          echo "Detected files:"
+          [ -f pom.xml ] && echo " -> pom.xml at root"
+          [ -f back/pom.xml ] && echo " -> back/pom.xml"
+          [ -f package.json ] && echo " -> package.json at root"
+          [ -f front/package.json ] && echo " -> front/package.json"
+
+  backend:
+    name: Backend (Maven)
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('pom.xml') != '' || hashFiles('back/pom.xml') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'   # mets '11' si ton projet est en Java 11
+      - name: Maven - root
+        if: ${{ hashFiles('pom.xml') != '' }}
+        run: |
+          chmod +x mvnw || true
+          ./mvnw -v
+          ./mvnw -B -DskipTests package
+      - name: Maven - back/
+        if: ${{ hashFiles('back/pom.xml') != '' }}
+        working-directory: back
+        run: |
+          chmod +x ../mvnw || true
+          ../mvnw -v
+          ../mvnw -B -DskipTests package
+
+  frontend:
+    name: Frontend (Node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Front at root - setup
+        if: ${{ hashFiles('package.json') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: Front at root - install & test
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          npm ci || npm install
+          npm test --if-present -- --watch=false
+
+      - name: Front under front/ - setup
+        if: ${{ hashFiles('front/package.json') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'front/package-lock.json'
+      - name: Front under front/ - install & test
+        if: ${{ hashFiles('front/package.json') != '' }}
+        working-directory: front
+        run: |
+          npm ci || npm install
+          npm test --if-present -- --watch=false
