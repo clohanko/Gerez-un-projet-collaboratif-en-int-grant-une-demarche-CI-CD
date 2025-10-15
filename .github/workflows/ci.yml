@@ -23,22 +23,32 @@ jobs:
   backend:
     name: Backend (Maven)
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('pom.xml') != '' || hashFiles('back/pom.xml') != '' }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Detect Maven module
+        id: detect_maven
+        run: |
+          has_maven="false"
+          if [ -f pom.xml ] || [ -f back/pom.xml ]; then has_maven="true"; fi
+          echo "has_maven=$has_maven" >> "$GITHUB_OUTPUT"
+
       - name: Set up Java
+        if: steps.detect_maven.outputs.has_maven == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'   # mets '11' si ton projet est en Java 11
+
       - name: Maven - root
-        if: ${{ hashFiles('pom.xml') != '' }}
+        if: steps.detect_maven.outputs.has_maven == 'true' && hashFiles('pom.xml') != ''
         run: |
           chmod +x mvnw || true
           ./mvnw -v
           ./mvnw -B -DskipTests package
+
       - name: Maven - back/
-        if: ${{ hashFiles('back/pom.xml') != '' }}
+        if: steps.detect_maven.outputs.has_maven == 'true' && hashFiles('back/pom.xml') != ''
         working-directory: back
         run: |
           chmod +x ../mvnw || true
@@ -51,27 +61,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Front at root - setup
-        if: ${{ hashFiles('package.json') != '' }}
+      - name: Detect frontend location
+        id: detect_front
+        run: |
+          loc="none"
+          if [ -f package.json ]; then loc="root"; fi
+          if [ -f front/package.json ]; then loc="front"; fi
+          echo "loc=$loc" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node (root)
+        if: steps.detect_front.outputs.loc == 'root'
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
-      - name: Front at root - install & test
-        if: ${{ hashFiles('package.json') != '' }}
+
+      - name: Install & test (root)
+        if: steps.detect_front.outputs.loc == 'root'
         run: |
           npm ci || npm install
           npm test --if-present -- --watch=false
 
-      - name: Front under front/ - setup
-        if: ${{ hashFiles('front/package.json') != '' }}
+      - name: Set up Node (front/)
+        if: steps.detect_front.outputs.loc == 'front'
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: 'front/package-lock.json'
-      - name: Front under front/ - install & test
-        if: ${{ hashFiles('front/package.json') != '' }}
+
+      - name: Install & test (front/)
+        if: steps.detect_front.outputs.loc == 'front'
         working-directory: front
         run: |
           npm ci || npm install
