@@ -8,6 +8,13 @@ on:
       - 'package.json'
       - '.github/workflows/front-push.yml'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   frontend:
     name: Frontend - Tests & Coverage
@@ -21,15 +28,44 @@ jobs:
           cache-dependency-path: |
             front/package-lock.json
             package-lock.json
-      - name: Install & test (front/, headless)
+
+      - name: Install & test (front/, headless + coverage)
         working-directory: front
-        env: { CI: true }
+        env:
+          CI: true
         run: |
           npm ci || npm install
-          npm test --if-present -- --watch=false --browsers=ChromeHeadless
+          npm test --if-present -- --watch=false --browsers=ChromeHeadless --code-coverage
+
       - name: Upload frontend coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: frontend-coverage
-          path: front/coverage/**
+          path: |
+            front/coverage/**
+            front/coverage/lcov.info
+
+  frontend-sonar-main:
+    name: Frontend - SonarCloud (main)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'   # <-- ne tourne que sur main
+    needs: frontend
+    defaults:
+      run:
+        working-directory: front
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: front/package-lock.json
+
+      # On s'appuie sur le lcov.info généré dans le job précédent
+      - name: SonarCloud Analyze (Front, main)
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: front
