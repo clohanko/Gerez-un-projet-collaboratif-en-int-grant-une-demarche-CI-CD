@@ -5,7 +5,14 @@ on:
     branches: [ "**" ]
     paths:
       - 'back/**'
-      - '.github/workflows/back-push.yml'
+      - '.github/workflows/back-push.yml'  # utile pour tester ce workflow quand tu modifies le YAML
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend:
@@ -45,3 +52,33 @@ jobs:
           path: |
             **/target/site/jacoco/**
             **/target/jacoco.exec
+            **/target/site/jacoco/jacoco.xml
+
+  backend-sonar-main:
+    name: Backend - SonarCloud (main)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'   # ne tourne que sur main
+    needs: backend                        # attend le job backend
+    defaults:
+      run:
+        working-directory: back
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+          cache: maven
+
+      # S'assurer que le jacoco.xml existe (Sonar lit le XML)
+      - name: Ensure JaCoCo XML
+        run: |
+          mvn -B -DskipTests=false test
+          mvn -B org.jacoco:jacoco-maven-plugin:0.8.5:report
+
+      - name: SonarCloud Analyze (Back, main)
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: back
