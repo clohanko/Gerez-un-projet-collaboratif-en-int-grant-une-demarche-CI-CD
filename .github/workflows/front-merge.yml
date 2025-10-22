@@ -32,3 +32,30 @@ jobs:
         with:
           name: frontend-coverage
           path: front/coverage/**
+  frontend-sonar:
+    name: Frontend - SonarCloud (PR)
+    runs-on: ubuntu-latest
+    needs: frontend
+    defaults:
+      run:
+        working-directory: front
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: front/package-lock.json
+      # (Re)générer la couverture LCOV
+      - name: Rebuild coverage (CI)
+        env:
+          CI: true
+        run: |
+          npm ci || npm install
+          npm run test -- --watch=false --browsers=ChromeHeadless --code-coverage
+      - name: SonarCloud Analyze (Front)
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: front
