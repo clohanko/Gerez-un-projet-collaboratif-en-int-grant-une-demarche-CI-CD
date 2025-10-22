@@ -1,0 +1,35 @@
+name: Front — Push
+
+on:
+  push:
+    branches: [ "**" ]
+    paths:
+      - 'front/**'
+      - 'package.json'
+      - '.github/workflows/front-push.yml'
+
+jobs:
+  frontend:
+    name: Frontend - Tests & Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: |
+            front/package-lock.json
+            package-lock.json
+      - name: Install & test (front/, headless)
+        working-directory: front
+        env: { CI: true }
+        run: |
+          npm ci || npm install
+          npm test --if-present -- --watch=false --browsers=ChromeHeadless
+      - name: Upload frontend coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: front/coverage/**
