@@ -1,4 +1,5 @@
 name: Front — PR
+
 on:
   pull_request:
     types: [opened, reopened, synchronize]
@@ -17,6 +18,7 @@ jobs:
     defaults:
       run:
         working-directory: front
+
     steps:
       - uses: actions/checkout@v4
 
@@ -27,9 +29,28 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'front/package-lock.json'
 
+      # (Optionnel) dépendances système utiles à Chrome headless
+      - name: Install Chrome system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnss3 libasound2 fonts-liberation
+
       - run: npm ci
-      - run: npm run test -- --watch=false --code-coverage --browsers=ChromeHeadlessCI
-      - run: npm run build -- --configuration=production
+
+      # Garde-fou : installe karma-chrome-launcher si absent (idéalement, ajoute-le en devDep dans le repo)
+      - name: Ensure karma-chrome-launcher is present
+        run: |
+          if ! npm ls karma-chrome-launcher >/dev/null 2>&1; then
+            npm i -D karma-chrome-launcher
+          fi
+
+      - name: Test (ChromeHeadless + coverage)
+        run: npm run test -- --watch=false --code-coverage --browsers=ChromeHeadless
+        env:
+          CI: "true"
+
+      - name: Build (production)
+        run: npm run build -- --configuration=production
 
       - name: SonarCloud Analyze (PR decoration)
         uses: SonarSource/sonarcloud-github-action@v2
