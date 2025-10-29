@@ -138,11 +138,12 @@ selon le projet) 5. **Tests + coverage** :
 
 ------------------------------------------------------------------------
 
+
 ## 7) Métriques actuelles (après première exécution)
 
 | Métrique | Backend | Frontend | Source |
 |-----------|----------|-----------|--------|
-| **Coverage global** | **38.8 %** | **0.0 %** | SonarCloud > Measures |
+| **Coverage global** | **38.8 %** | **52.6 %** | SonarCloud > Measures |
 | **Coverage New Code** | _(non affiché)_ | _(non affiché)_ | SonarCloud > Quality Gate |
 | **Bugs** | **1** | **0** | SonarCloud > Issues |
 | **Vulnerabilities** | **0** | **0** | SonarCloud > Issues |
@@ -151,9 +152,11 @@ selon le projet) 5. **Tests + coverage** :
 | **Quality Gate (main)** | ✅ **Passed** | ✅ **Passed** | SonarCloud |
 
 ### 🧭 Interprétation rapide
-- **Backend** : couverture correcte pour un début (38.8 %), mais encore loin de l’objectif de 80 %. Un bug et quelques *code smells* à corriger.  
-- **Frontend** : aucun bug ni vulnérabilité, mais la couverture à 0 % indique que les tests ne sont pas encore reliés à Sonar (à corriger via `sonar-project.properties`).  
-- **Quality Gate** : les deux modules **ont passé** le contrôle, donc la pipeline CI/CD est considérée comme **valide**.
+- **Backend** : 38.8 % de couverture, encore sous l’objectif de 80 %, mais tests et analyse bien reconnus.  
+- **Frontend** : 52.6 % de couverture — le rapport LCOV est maintenant pris en compte 🎯.  
+- Les deux projets ont **0 vulnérabilité**, **Quality Gate validé**, et des **code smells mineurs**.  
+- Prochaine étape : renforcer les tests unitaires côté back et compléter les scénarios front pour atteindre la cible de **80 % de coverage**.
+
 
 
 ------------------------------------------------------------------------
