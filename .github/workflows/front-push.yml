@@ -1,71 +1,50 @@
 name: Front — Push
-
 on:
   push:
     branches: [ "**" ]
     paths:
       - 'front/**'
-      - 'package.json'
       - '.github/workflows/front-push.yml'
 
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   frontend:
-    name: Frontend - Tests & Coverage
+    name: Front — Build • Tests • Coverage • Sonar
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: |
-            front/package-lock.json
-            package-lock.json
-
-      - name: Install & test (front/, headless + coverage)
-        working-directory: front
-        env:
-          CI: true
-        run: |
-          npm ci || npm install
-          npm test --if-present -- --watch=false --browsers=ChromeHeadless --code-coverage
-
-      - name: Upload frontend coverage artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-coverage
-          path: |
-            front/coverage/**
-            front/coverage/lcov.info
-
-  frontend-sonar-main:
-    name: Frontend - SonarCloud (main)
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'   # <-- ne tourne que sur main
-    needs: frontend
     defaults:
       run:
         working-directory: front
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: front/package-lock.json
 
-      # On s'appuie sur le lcov.info généré dans le job précédent
-      - name: SonarCloud Analyze (Front, main)
+      - name: Use Node 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: 'front/package-lock.json'
+
+      - run: npm ci
+      - run: npm run test -- --watch=false --code-coverage
+      - run: npm run build -- --configuration=production
+
+      # Sonar pour branches ≠ main
+      - name: SonarCloud Analyze (branch)
+        if: github.ref != 'refs/heads/main'
         uses: SonarSource/sonarcloud-github-action@v2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           projectBaseDir: front
+
+      # Sur main, on fait respecter le QG
+      - name: SonarCloud Analyze (main, enforce QG)
+        if: github.ref == 'refs/heads/main'
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: front
+          args: -Dsonar.qualitygate.wait=true
