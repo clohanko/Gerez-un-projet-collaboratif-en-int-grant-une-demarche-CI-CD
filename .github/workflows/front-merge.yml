@@ -1,61 +1,53 @@
 name: Front — PR
-
 on:
   pull_request:
+    types: [opened, reopened, synchronize]
     paths:
       - 'front/**'
-      - 'package.json'
-      - '.github/workflows/front-merge.yml'
+      - '.github/workflows/front-pr.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   frontend:
-    name: Frontend - Tests & Coverage (PR)
+    name: Front — Build • Tests • Coverage • Sonar (PR)
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: |
-            front/package-lock.json
-            package-lock.json
-      - name: Install & test (front/, headless)
-        working-directory: front
-        env: { CI: true }
-        run: |
-          npm ci || npm install
-          npm test --if-present -- --watch=false --browsers=ChromeHeadless
-      - name: Upload frontend coverage artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-coverage
-          path: front/coverage/**
-  frontend-sonar:
-    name: Frontend - SonarCloud (PR)
-    runs-on: ubuntu-latest
-    needs: frontend
     defaults:
       run:
         working-directory: front
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Use Node 18
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: 18
           cache: 'npm'
-          cache-dependency-path: front/package-lock.json
-      # (Re)générer la couverture LCOV
-      - name: Rebuild coverage (CI)
-        env:
-          CI: true
-        run: |
-          npm ci || npm install
-          npm run test -- --watch=false --browsers=ChromeHeadless --code-coverage
-      - name: SonarCloud Analyze (Front)
+          cache-dependency-path: 'front/package-lock.json'
+
+      - run: npm ci
+      - run: npm run test -- --watch=false --code-coverage --browsers=ChromeHeadlessCI
+      - run: npm run build -- --configuration=production
+
+      - name: SonarCloud Analyze (PR decoration)
         uses: SonarSource/sonarcloud-github-action@v2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           projectBaseDir: front
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build (front, no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./front
+          file: ./front/Dockerfile
+          push: false
+          load: true
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
