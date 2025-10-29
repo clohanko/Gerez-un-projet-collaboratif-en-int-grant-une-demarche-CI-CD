@@ -28,7 +28,7 @@ jobs:
           cache-dependency-path: 'front/package-lock.json'
 
       - run: npm ci
-      - run: npm run test -- --watch=false --code-coverage
+      - run: npm run test -- --watch=false --code-coverage --browsers=ChromeHeadlessCI
       - run: npm run build -- --configuration=production
 
       - name: SonarCloud Analyze (PR decoration)
