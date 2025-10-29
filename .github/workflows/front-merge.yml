@@ -21,6 +21,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # ✅ évite le "shallow clone" pour Sonar (SCM)
 
       - name: Use Node 18
         uses: actions/setup-node@v4
@@ -29,13 +31,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'front/package-lock.json'
 
-      # Installe Chrome + deps (cross-distro)
       - name: Setup Chrome
         uses: browser-actions/setup-chrome@v1
 
       - run: npm ci
 
-      # Idéalement, ajoute karma-chrome-launcher en devDep dans le repo.
       - name: Ensure karma-chrome-launcher is present
         run: |
           if ! npm ls karma-chrome-launcher >/dev/null 2>&1; then
@@ -46,6 +46,20 @@ jobs:
         run: npm run test -- --watch=false --code-coverage --browsers=ChromeHeadless
         env:
           CI: "true"
+
+      - name: Debug coverage files
+        run: |
+          echo "pwd=$(pwd)"
+          ls -la coverage || true
+          find coverage -name "lcov.info" -maxdepth 3 -print -exec wc -c {} \; || true
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: front-coverage-pr
+          path: front/coverage
+          if-no-files-found: warn
+          retention-days: 3
 
       - name: Build (production)
         run: npm run build -- --configuration=production
