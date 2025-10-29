@@ -29,15 +29,13 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'front/package-lock.json'
 
-      # (Optionnel) dépendances système utiles à Chrome headless
-      - name: Install Chrome system deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libnss3 libasound2 fonts-liberation
+      # Installe Chrome + deps (cross-distro)
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
 
       - run: npm ci
 
-      # Garde-fou : installe karma-chrome-launcher si absent (idéalement, ajoute-le en devDep dans le repo)
+      # Idéalement, ajoute karma-chrome-launcher en devDep dans le repo.
       - name: Ensure karma-chrome-launcher is present
         run: |
           if ! npm ls karma-chrome-launcher >/dev/null 2>&1; then

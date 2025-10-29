@@ -28,15 +28,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'front/package-lock.json'
 
-      # (Optionnel) dépendances système utiles à Chrome headless
-      - name: Install Chrome system deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libnss3 libasound2 fonts-liberation
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
 
       - run: npm ci
 
-      # Garde-fou : installer le launcher si absent (idéalement l’ajouter en devDep dans le projet)
       - name: Ensure karma-chrome-launcher is present
         run: |
           if ! npm ls karma-chrome-launcher >/dev/null 2>&1; then
@@ -94,7 +90,7 @@ jobs:
         with:
           context: ./front
           file: ./front/Dockerfile
-          # si tu veux publier uniquement sur main, remplace par:
+          # Si tu veux publier uniquement sur main :
           # push: ${{ github.ref == 'refs/heads/main' }}
           push: true
           platforms: linux/amd64
