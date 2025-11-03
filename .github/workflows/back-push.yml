@@ -54,7 +54,6 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           projectBaseDir: back
-          # args: -Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml
 
       # Analyse bloquante sur main (Quality Gate)
       - name: SonarCloud Analyze (main, enforce QG)
