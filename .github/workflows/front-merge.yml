@@ -2,7 +2,7 @@ name: Front — PR
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, closed]
     paths:
       - 'front/**'
       - '.github/workflows/front-pr.yml'
@@ -12,17 +12,17 @@ permissions:
   pull-requests: write
 
 jobs:
-  frontend:
+  pr_checks:
     name: Front — Build • Tests • Coverage • Sonar (PR)
     runs-on: ubuntu-latest
+    if: github.event.action != 'closed' # ⬅️ on ne lance pas ce job quand la PR est close
     defaults:
       run:
         working-directory: front
-
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # ✅ évite le "shallow clone" pour Sonar (SCM)
+          fetch-depth: 0   # SCM pour Sonar
 
       - name: Use Node 18
         uses: actions/setup-node@v4
@@ -68,19 +68,89 @@ jobs:
         uses: SonarSource/sonarcloud-github-action@v2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          # GITHUB_TOKEN peut aider pour la déco PR selon config SonarCloud
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectBaseDir: front
+          # Optionnel si pas de sonar-project.properties :
+          # args: -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+  docker_push_on_merged_pr:
+    name: Front — Docker push (when PR merged into main)
+    runs-on: ubuntu-latest
+    # ⬇️ Ne s’exécute que si la PR est FERMÉE + MERGÉE et que la base de la PR est main
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main'
+    defaults:
+      run:
+        working-directory: front
+    steps:
+      # On reconstruit exactement sur le commit de merge
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Use Node 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: 'front/package-lock.json'
+
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - run: npm ci
+
+      - name: Test (ChromeHeadless + coverage)
+        run: npm run test -- --watch=false --code-coverage --browsers=ChromeHeadless
+        env:
+          CI: "true"
+
+      - name: Build (production)
+        run: npm run build -- --configuration=production
+
+      # Quality Gate bloquant sur l'état MEGÉ de main avant push Docker
+      - name: SonarCloud Analyze (main, enforce QG)
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: front
+          args: -Dsonar.qualitygate.wait=true
+          # + optionnel: -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+      - name: Docker meta (front)
+        id: meta_front
+        uses: docker/metadata-action@v5
+        with:
+          images: docker.io/${{ vars.DOCKERHUB_NAMESPACE || secrets.DOCKERHUB_USERNAME }}/bobapp-front
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+            type=raw,value=latest
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build (front, no push)
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & Push (front)
         uses: docker/build-push-action@v6
         with:
           context: ./front
           file: ./front/Dockerfile
-          push: false
-          load: true
+          push: true
           platforms: linux/amd64
+          tags: ${{ steps.meta_front.outputs.tags }}
+          labels: ${{ steps.meta_front.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
