@@ -54,7 +54,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectBaseDir: back
-          # args: -Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml
 
       - name: Upload coverage artifacts
         if: always()
@@ -69,7 +68,6 @@ jobs:
   release_on_merge:
     name: Backend — Docker Push (on PR merged to main)
     runs-on: ubuntu-latest
-    # ⬇️ seulement si la PR est fermée + mergée et que la base est main
     if: >
       github.event_name == 'pull_request' &&
       github.event.action == 'closed' &&
@@ -79,7 +77,6 @@ jobs:
       run:
         working-directory: back
     steps:
-      # Reconstruit exactement sur le commit de merge (état réel de main)
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -98,7 +95,6 @@ jobs:
       - name: Generate JaCoCo report (XML)
         run: mvn -B org.jacoco:jacoco-maven-plugin:0.8.5:report
 
-      # Quality Gate bloquant sur l'état mergé (main) avant push Docker
       - name: SonarCloud Analyze (main, enforce QG)
         uses: SonarSource/sonarcloud-github-action@v2
         env:
