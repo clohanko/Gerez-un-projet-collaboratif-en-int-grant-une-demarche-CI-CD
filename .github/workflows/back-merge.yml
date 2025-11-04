@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  checks: write   # ✅ pour créer le check-run JUnit
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,7 +19,7 @@ jobs:
   pr_checks:
     name: Backend — Build • Tests • Coverage • Sonar (PR)
     runs-on: ubuntu-latest
-    if: github.event.action != 'closed'   # pas ce job quand la PR est close
+    if: github.event.action != 'closed'
     defaults:
       run:
         working-directory: back
@@ -44,6 +45,7 @@ jobs:
         if: always()
         uses: mikepenz/action-junit-report@v4
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}   # ✅ explicite
           report_paths: '**/target/surefire-reports/*.xml'
           check_name: 'Backend JUnit (PR)'
 
@@ -79,7 +81,6 @@ jobs:
       run:
         working-directory: back
     steps:
-      # Reconstruit exactement sur le commit de merge (état réel de main)
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -98,7 +99,6 @@ jobs:
       - name: Generate JaCoCo report (XML)
         run: mvn -B org.jacoco:jacoco-maven-plugin:0.8.5:report
 
-      # Quality Gate bloquant sur l'état mergé (main) avant push Docker
       - name: SonarCloud Analyze (main, enforce QG)
         uses: SonarSource/sonarcloud-github-action@v2
         env:
