@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  checks: write   # ✅ permet de créer les check-runs JUnit
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -43,6 +44,7 @@ jobs:
         if: always()
         uses: mikepenz/action-junit-report@v4
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}   # ✅ explicite
           report_paths: '**/target/surefire-reports/*.xml'
           check_name: 'Backend JUnit (push)'
 
