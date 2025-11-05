@@ -19,7 +19,8 @@ jobs:
         working-directory: front
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0   # ✅ pour Sonar (SCM)
 
@@ -33,7 +34,8 @@ jobs:
       - name: Setup Chrome
         uses: browser-actions/setup-chrome@v1
 
-      - run: npm ci
+      - name: Install dependencies (npm ci)
+        run: npm ci
 
       - name: Ensure karma-chrome-launcher is present
         run: |
