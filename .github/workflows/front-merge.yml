@@ -1,87 +1,25 @@
-name: Front — PR
+name: Front — Release on Merge
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, closed]  # ⬅️ on capte aussi l’événement "closed"
+    types: [closed]
     paths:
       - 'front/**'
-      - '.github/workflows/front-pr.yml'
-
-permissions:
-  contents: read
-  pull-requests: write
+      - '.github/workflows/front-merge.yml'
 
 jobs:
-  pr_checks:
-    name: Front — Build • Tests • Coverage • Sonar (PR)
-    runs-on: ubuntu-latest
-    if: github.event.action != 'closed'   # ⬅️ on ne lance pas ce job quand la PR est close
-    defaults:
-      run:
-        working-directory: front
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Use Node 18
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-          cache: 'npm'
-          cache-dependency-path: 'front/package-lock.json'
-
-      - name: Setup Chrome
-        uses: browser-actions/setup-chrome@v1
-
-      - run: npm ci
-
-      - name: Ensure karma-chrome-launcher is present
-        run: |
-          if ! npm ls karma-chrome-launcher >/dev/null 2>&1; then
-            npm i -D karma-chrome-launcher
-          fi
-
-      - name: Test (ChromeHeadless + coverage)
-        run: npm run test -- --watch=false --code-coverage --browsers=ChromeHeadless
-        env:
-          CI: "true"
-
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: front-coverage-pr
-          path: front/coverage
-          if-no-files-found: warn
-          retention-days: 3
-
-      - name: Build (production)
-        run: npm run build -- --configuration=production
-
-      - name: SonarCloud Analyze (PR decoration)
-        uses: SonarSource/sonarcloud-github-action@v2
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectBaseDir: front
-          # args: -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info  # si pas de sonar-project.properties
-
   release_on_merge:
-    name: Front — Docker Push (on PR merged to main)
-    runs-on: ubuntu-latest
-    # ⬇️ ne s'exécute QUE si la PR est fermée + mergée ET que la base est "main"
     if: >
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: front
+
     steps:
-      # Reconstruit exactement sur le commit de merge (état réel de main)
-      - uses: actions/checkout@v4
+      - name: Checkout (merge commit)
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.merge_commit_sha }}
@@ -96,7 +34,14 @@ jobs:
       - name: Setup Chrome
         uses: browser-actions/setup-chrome@v1
 
-      - run: npm ci
+      - name: Install dependencies (npm ci)
+        run: npm ci
+
+      - name: Ensure karma-chrome-launcher is present
+        run: |
+          if ! npm ls karma-chrome-launcher >/dev/null 2>&1; then
+            npm i -D karma-chrome-launcher
+          fi
 
       - name: Test (ChromeHeadless + coverage)
         run: npm run test -- --watch=false --code-coverage --browsers=ChromeHeadless
@@ -106,15 +51,15 @@ jobs:
       - name: Build (production)
         run: npm run build -- --configuration=production
 
-      # Quality Gate bloquant sur l'état mergé (main) avant push
-      - name: SonarCloud Analyze (main, enforce QG)
+      - name: SonarCloud (enforce QG)
         uses: SonarSource/sonarcloud-github-action@v2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           projectBaseDir: front
-          args: -Dsonar.qualitygate.wait=true
-          # + optionnel: -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+          args: >
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
 
       - name: Docker meta (front)
         id: meta_front
@@ -122,20 +67,19 @@ jobs:
         with:
           images: docker.io/${{ vars.DOCKERHUB_NAMESPACE || secrets.DOCKERHUB_USERNAME }}/bobapp-front
           tags: |
-            type=ref,event=branch
             type=sha,format=short
             type=raw,value=latest
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
+      - name: Docker Hub login
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build & Push (front)
+      - name: Build & Push image
         uses: docker/build-push-action@v6
         with:
           context: ./front
