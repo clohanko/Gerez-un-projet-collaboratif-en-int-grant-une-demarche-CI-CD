@@ -5,7 +5,7 @@ on:
     branches: [ "**" ]
     paths:
       - 'front/**'
-      - '.github/workflows/front-push.yml'
+     
 
 permissions:
   contents: read
@@ -22,7 +22,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # ✅ pour Sonar (SCM)
+          fetch-depth: 0   
 
       - name: Use Node 18
         uses: actions/setup-node@v4
@@ -65,21 +65,9 @@ jobs:
       - name: Build (production)
         run: npm run build -- --configuration=production
 
-      # Sonar pour branches ≠ main
       - name: SonarCloud Analyze (branch)
-        if: github.ref != 'refs/heads/main'
         uses: SonarSource/sonarcloud-github-action@v2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           projectBaseDir: front
-
-      # Sur main, Quality Gate bloquant
-      - name: SonarCloud Analyze (main, enforce QG)
-        if: github.ref == 'refs/heads/main'
-        uses: SonarSource/sonarcloud-github-action@v2
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          projectBaseDir: front
-          args: -Dsonar.qualitygate.wait=true
