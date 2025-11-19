@@ -7,7 +7,8 @@ on:
       - 'front/**'
 
 jobs:
-  release_on_merge:
+  frontend_quality:
+    name: Front — Quality Gate on Merge
     if: >
       github.event.pull_request.merged == true &&
       github.event.pull_request.base.ref == 'main'
@@ -59,6 +60,24 @@ jobs:
           args: >
             -Dsonar.qualitygate.wait=true
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+  frontend_docker_release:
+    name: Front — Docker Build & Push on Merge
+    if: >
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    needs: frontend_quality              
+    defaults:
+      run:
+        working-directory: front
+
+    steps:
+      - name: Checkout (merge commit)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - name: Docker meta (front)
         id: meta_front
