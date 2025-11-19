@@ -8,7 +8,8 @@ on:
       - '.github/workflows/back-merge.yml'
 
 jobs:
-  release_on_merge:
+  quality:
+    name: Backend — Quality Gate on Merge
     if: >
       github.event.pull_request.merged == true &&
       github.event.pull_request.base.ref == 'main'
@@ -46,6 +47,24 @@ jobs:
           args: >
             -Dsonar.qualitygate.wait=true
             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+
+  docker_release:
+    name: Backend — Docker Build & Push on Merge
+    if: >
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    needs: quality              
+    defaults:
+      run:
+        working-directory: back
+
+    steps:
+      - name: Checkout (merge commit)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - name: Docker meta
         id: meta
